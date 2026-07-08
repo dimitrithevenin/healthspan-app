@@ -1,7 +1,5 @@
-const CACHE = "healthspan-v1";
+const CACHE = "healthspan-v3";
 const SHELL = [
-  "./",
-  "./index.html",
   "./manifest.json",
   "./icon-192.png",
   "./icon-512.png",
@@ -25,12 +23,28 @@ self.addEventListener("activate", event => {
 });
 
 self.addEventListener("fetch", event => {
+  const req = event.request;
+  const isAppFile = req.mode === "navigate" || req.url.endsWith("index.html") || req.url.endsWith("/");
+
+  if (isAppFile) {
+    event.respondWith(
+      fetch(req)
+        .then(response => {
+          const copy = response.clone();
+          caches.open(CACHE).then(cache => cache.put(req, copy)).catch(() => {});
+          return response;
+        })
+        .catch(() => caches.match(req))
+    );
+    return;
+  }
+
   event.respondWith(
-    caches.match(event.request).then(cached => {
+    caches.match(req).then(cached => {
       if (cached) return cached;
-      return fetch(event.request).then(response => {
+      return fetch(req).then(response => {
         const copy = response.clone();
-        caches.open(CACHE).then(cache => cache.put(event.request, copy)).catch(() => {});
+        caches.open(CACHE).then(cache => cache.put(req, copy)).catch(() => {});
         return response;
       }).catch(() => cached);
     })
