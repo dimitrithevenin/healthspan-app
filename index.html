@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Thevenin Healthspan Training</title>
+<meta name="description" content="24-week rotation-based strength, KB power, and mobility training tracker." />
+<link rel="manifest" href="manifest.json" />
+<meta name="theme-color" content="#09090b" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Healthspan" />
+<link rel="apple-touch-icon" href="icon-192.png" />
+<link rel="icon" href="icon-192.png" />
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js" crossorigin></script>
+<style>
+  body { background: #09090b; overscroll-behavior-y: none; }
+  input:focus { outline: none; box-shadow: 0 0 0 2px #f59e0b; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel" data-presets="react">
+const { useState, useEffect } = React;
+
+function Icon({ path, size = 18, className = "" }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+      strokeLinecap="round" strokeLinejoin="round" className={className}>
+      {path}
+    </svg>
+  );
+}
+const IconDumbbell = p => <Icon {...p} path={<>
+  <path d="M6.5 6.5 4 4"/><path d="M20 20l-2.5-2.5"/>
+  <path d="M2 8l2-2 3 3-2 2z"/><path d="M17 13l3-3 2 2-3 3z"/>
+  <path d="M6 12L12 6l6 6-6 6z"/></>} />;
+const IconFlame = p => <Icon {...p} path={<path d="M8.5 14.5A2.5 2.5 0 0 0 11 17a2.5 2.5 0 0 0 2.5-2.5c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7.5 7.5 0 1 1-15 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/>} />;
+const IconFoot = p => <Icon {...p} path={<>
+  <path d="M4 16v-2.38C4 11.5 2.97 10.5 3 9c.03-1.5 1.13-2 2-2 1.5 0 3 1.5 3 3v.5"/>
+  <path d="M13 20v-2.38c0-1.12 1.03-2.12 1-3.62-.03-1.5-1.13-2-2-2-1 0-2 .8-2.5 1.5"/>
+  <path d="M7.5 8C9 8 10 9.5 10 11c0 1-.5 1.5-.5 2.5S10 15 10 16v4"/>
+</>} />;
+const IconHistory = p => <Icon {...p} path={<>
+  <path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/>
+</>} />;
+const IconCheck = p => <Icon {...p} path={<path d="M20 6 9 17l-5-5"/>} />;
+const IconChevronDown = p => <Icon {...p} path={<path d="m6 9 6 6 6-6"/>} />;
+const IconChevronUp = p => <Icon {...p} path={<path d="m18 15-6-6-6 6"/>} />;
+const IconPlay = p => <Icon {...p} path={<path d="M6 3v18l15-9L6 3z"/>} />;
+const IconX = p => <Icon {...p} path={<><path d="M18 6 6 18"/><path d="M6 6l12 12"/></>} />;
+const IconCircle = p => <Icon {...p} path={<circle cx="12" cy="12" r="9"/>} />;
+const IconCheckCircle = p => <Icon {...p} path={<><circle cx="12" cy="12" r="9"/><path d="m9 12 2 2 4-4"/></>} />;
+
+const SEQUENCE = ["A", "B", "C", "D"];
+
+const MOVEMENT_POOL = {
+  "Hinge / power": [
+    { name: "KB swings", reps: "15", note: "Powerful hip snap, crisp reps." },
+    { name: "Single-arm swings", reps: "10/side", note: "Switch hands mid-set, stay square." },
+    { name: "Alternating swings", reps: "16", note: "Hand-to-hand at the top, no rushing." },
+    { name: "Heavy swings", reps: "12", note: "Go up a bell size, stay crisp." },
+  ],
+  "Press": [
+    { name: "KB clean & press (alt arm)", reps: "5/side", note: "Reset grip between reps early on." },
+    { name: "Push press (alt arm)", reps: "8/side", note: "Dip and drive, let legs do the work." },
+    { name: "Thrusters", reps: "8", note: "Squat to press, use momentum from legs." },
+    { name: "Bottoms-up press", reps: "5/side", note: "Grip crushes the handle, slow tempo." },
+    { name: "Pushups", reps: "12", note: "Full range, scale to knees if needed." },
+  ],
+  "Pull": [
+    { name: "Ballistic rows (alt arm)", reps: "20", note: "Explosive pull, control the descent." },
+    { name: "Renegade rows", reps: "6/side", note: "Brace hard, minimize hip rock." },
+    { name: "High pulls", reps: "10", note: "Drive elbow high and back." },
+    { name: "Plank rows", reps: "6/side", note: "Wide stance, minimal rotation." },
+    { name: "Alternating rows", reps: "20", note: "Fast tempo, controlled range." },
+  ],
+  "Squat / lunge": [
+    { name: "Goblet squats", reps: "12", note: "Elbows inside knees at bottom." },
+    { name: "KB squat cleans", reps: "6/side", note: "Keep the bell close on the way up." },
+    { name: "Goblet reverse lunge", reps: "8/side", note: "Control the knee, drive through the heel." },
+    { name: "Split squat (KB)", reps: "8/side", note: "Front-rack or offset load, stay upright." },
+  ],
+  "Core / carry": [
+    { name: "KB halos", reps: "8/side", note: "Slow and controlled around the head." },
+    { name: "Windmills", reps: "6/side", note: "Hinge at the hip, eyes on the bell." },
+    { name: "Suitcase deadlifts", reps: "10/side", note: "Stay tall, resist side bend." },
+    { name: "Suitcase carry hold", reps: "30 sec/side", note: "Tall posture, no leaning away from the load." },
+  ],
+};
+
+function shuffle(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function generateCircuit() {
+  const categories = shuffle(Object.keys(MOVEMENT_POOL));
+  const movements = categories.map(cat => {
+    const options = MOVEMENT_POOL[cat];
+    return options[Math.floor(Math.random() * options.length)];
+  });
+  return { rounds: "4–5 rounds", movements };
+}
+
+function buildWorkoutB(circuit) {
+  const c = circuit || generateCircuit();
+  return {
+    name: "KB power & conditioning",
+    focus: "Randomized KB circuit, one movement per pattern",
+    duration: "30–60 min",
+    hyper: "No Hyper required",
+    sections: [
+      { title: "Warm-up", exercises: [
+        { name: "Jump rope or march", sets: "1", reps: "3–5 min", intensity: "Easy", note: "Use marching if feet complain." },
+      ]},
+      { title: `EMOM circuit (${c.rounds})`, exercises: c.movements.map(m => ({
+        name: m.name, sets: c.rounds, reps: m.reps, intensity: "Crisp, not grindy", note: m.note,
+      }))},
+      { title: "Carry", exercises: [
+        { name: "Farmer carry", sets: "4", reps: "30–60 sec/trip", intensity: "Heavy but controlled", note: "Grip, trunk, posture." },
+      ]},
+      { title: "Optional", exercises: [
+        { name: "Battle rope intervals", sets: "4", reps: "20 on / 40 off", intensity: "Hard", note: "Optional finisher only." },
+      ]},
+    ],
+  };
+}
+
+const STATIC_WORKOUTS = {
+  A: {
+    name: "Strength A + Hyper Back",
+    focus: "Squat / press / pull + posterior chain",
+    duration: "60–75 min",
+    hyper: "Back/GHD/Reverse Hyper mode only",
+    sections: [
+      { title: "Warm-up", exercises: [
+        { name: "Backward treadmill walk", sets: "1", reps: "5 min", intensity: "Easy/moderate", note: "Self-powered if belt rolls; face rear if needed." },
+        { name: "Tib raises", sets: "2", reps: "20", intensity: "Controlled", note: "Shins burn is fine; no sharp pain." },
+        { name: "Standing calf raises", sets: "2", reps: "15", intensity: "Controlled", note: "Full range; pause at top." },
+        { name: "Supported ATG split squat", sets: "2", reps: "8/leg", intensity: "Easy ROM", note: "Use support and heel elevation if ankle feels weak." },
+      ]},
+      { title: "Power primer", exercises: [
+        { name: "Box drop to stick", sets: "3", reps: "3", intensity: "Crisp only", note: "Step off low box, land soft, freeze 2 sec." },
+        { name: "Broad jump", sets: "3", reps: "3", intensity: "Explosive", note: "Rest plenty. Quality, not conditioning." },
+      ]},
+      { title: "Strength", exercises: [
+        { name: "Back squat", sets: "5", reps: "5", intensity: "RPE 7", note: "Add 5 lb next time if all reps clean." },
+        { name: "Standing overhead press", sets: "3", reps: "5", intensity: "RPE 7", note: "Strict, no backbend." },
+        { name: "Pull-ups", sets: "3", reps: "1–2 shy failure", intensity: "Controlled", note: "Add weight only when clean reps are easy." },
+      ]},
+      { title: "Hyper", exercises: [
+        { name: "Back extensions", sets: "3", reps: "10", intensity: "Start bodyweight", note: "Add load gradually after several easy sessions." },
+        { name: "GHD sit-ups", sets: "2", reps: "5", intensity: "Very conservative", note: "Brutal soreness risk. Do not chase volume early." },
+        { name: "Reverse hypers", sets: "2", reps: "20", intensity: "Easy pump", note: "Recovery-focused, not max effort." },
+      ]},
+    ],
+  },
+  C: {
+    name: "Strength B + Hyper Leg",
+    focus: "Deadlift / rows / front squat + leg curls/extensions",
+    duration: "60–75 min",
+    hyper: "Leg Developer attachment installed",
+    sections: [
+      { title: "Warm-up", exercises: [
+        { name: "Backward treadmill walk", sets: "1", reps: "5 min", intensity: "Easy/moderate", note: "Knee/ankle prep." },
+        { name: "ATG split squat", sets: "2", reps: "8/leg", intensity: "Easy ROM", note: "Use support." },
+      ]},
+      { title: "Strength", exercises: [
+        { name: "Deadlift", sets: "3", reps: "5", intensity: "RPE 7", note: "Do not grind. Work demands matter." },
+        { name: "Front squat", sets: "3", reps: "6", intensity: "Moderate", note: "Heel plate okay if mobility limits position." },
+        { name: "Rows", sets: "3", reps: "8", intensity: "Moderate", note: "Upper back strength for posture/work." },
+      ]},
+      { title: "Hyper leg", exercises: [
+        { name: "Leg curls", sets: "3", reps: "12", intensity: "Moderate", note: "Knee-flexion hamstring work swings miss." },
+        { name: "Leg extensions", sets: "3", reps: "12", intensity: "Moderate", note: "Quad strength; control the top." },
+        { name: "Single-leg curls", sets: "2", reps: "10/leg", intensity: "Light/moderate", note: "Optional if time/energy allows." },
+      ]},
+      { title: "Nordic", exercises: [
+        { name: "Nordic negatives", sets: "3", reps: "3", intensity: "Slow lower only", note: "Catch with hands at point of no return." },
+      ]},
+    ],
+  },
+  D: {
+    name: "Athleticism + mobility",
+    focus: "Jumps, landings, ATG, yoga, backward walking",
+    duration: "35–60 min",
+    hyper: "Optional Back/GHD, no Leg Developer",
+    sections: [
+      { title: "Warm-up", exercises: [
+        { name: "Backward treadmill walk", sets: "1", reps: "10 min", intensity: "Easy/moderate", note: "ATG-style knee/ankle capacity." },
+      ]},
+      { title: "Plyo", exercises: [
+        { name: "Pogo jumps", sets: "3", reps: "20", intensity: "Elastic/light", note: "Small bounces; stop if feet/ankles complain." },
+        { name: "Box drop to stick", sets: "3", reps: "5", intensity: "Quality", note: "Land quietly and freeze." },
+        { name: "Broad jumps", sets: "5", reps: "3", intensity: "Explosive", note: "Full rest; not a metcon." },
+      ]},
+      { title: "Static", exercises: [
+        { name: "Suitcase hold/carry", sets: "3", reps: "30–60 sec/side", intensity: "Heavy", note: "Anti-lateral flexion and grip." },
+        { name: "Split squat ISO hold", sets: "2", reps: "20–40 sec/side", intensity: "Controlled", note: "Joint/tendon capacity." },
+      ]},
+      { title: "Mobility", exercises: [
+        { name: "Yoga flow", sets: "1", reps: "20 min", intensity: "Easy/moderate", note: "Hips, ankles, thoracic spine." },
+      ]},
+    ],
+  },
+};
+
+function getWorkout(id, circuit) {
+  if (id === "B") return buildWorkoutB(circuit);
+  return STATIC_WORKOUTS[id];
+}
+
+const DAILY_ITEMS = [
+  { key: "toe", name: "Toe yoga / short foot", detail: "2 min, barefoot" },
+  { key: "balance", name: "Single-leg balance", detail: "30–60 sec/side" },
+  { key: "ankle", name: "Ankle circles", detail: "10 each direction" },
+];
+
+function todayStr() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function loadJSON(key, fallback) {
+  try {
+    const v = localStorage.getItem(key);
+    return v ? JSON.parse(v) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+function saveJSON(key, value) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch (e) {
+    console.error(e);
+  }
+}
+
+function emptyEntries(workout) {
+  const e = {};
+  workout.sections.forEach(sec => sec.exercises.forEach(ex => {
+    e[ex.name] = { s1: "", s2: "", s3: "", s4: "", load: "", rpe: "", done: false, notes: "" };
+  }));
+  return e;
+}
+
+function App() {
+  const [tab, setTab] = useState("home");
+  const [rotation, setRotation] = useState(() => loadJSON("rotation-state", { lastCompleted: "A" }));
+  const [sessions, setSessions] = useState(() => loadJSON("sessions", []));
+  const [dailyLog, setDailyLog] = useState(() => loadJSON("daily-log", {}));
+  const [bCircuit, setBCircuit] = useState(() => generateCircuit());
+  const [activeWorkout, setActiveWorkout] = useState(null);
+  const [activeCircuit, setActiveCircuit] = useState(null);
+  const [entries, setEntries] = useState({});
+  const [openHistory, setOpenHistory] = useState(null);
+
+  useEffect(() => {
+    setBCircuit(generateCircuit());
+  }, [rotation.lastCompleted]);
+
+  const nextId = SEQUENCE[(SEQUENCE.indexOf(rotation.lastCompleted) + 1) % 4];
+  const nextWorkout = getWorkout(nextId, bCircuit);
+  const activeWorkoutData = activeWorkout ? getWorkout(activeWorkout, activeCircuit) : null;
+  const todayDaily = dailyLog[todayStr()] || {};
+
+  function startSession() {
+    const workout = getWorkout(nextId, bCircuit);
+    setActiveWorkout(nextId);
+    setActiveCircuit(bCircuit);
+    setEntries(emptyEntries(workout));
+    setTab("session");
+  }
+
+  function updateEntry(exName, field, value) {
+    setEntries(prev => ({ ...prev, [exName]: { ...prev[exName], [field]: value } }));
+  }
+
+  function completeSession() {
+    const record = {
+      id: `${activeWorkout}-${Date.now()}`,
+      date: todayStr(),
+      workoutId: activeWorkout,
+      circuit: activeWorkout === "B" ? activeCircuit : undefined,
+      entries,
+    };
+    const newSessions = [record, ...sessions];
+    const newRotation = { lastCompleted: activeWorkout };
+    saveJSON("sessions", newSessions);
+    saveJSON("rotation-state", newRotation);
+    setSessions(newSessions);
+    setRotation(newRotation);
+    setActiveWorkout(null);
+    setTab("home");
+  }
+
+  function toggleDaily(key) {
+    const day = todayStr();
+    const current = dailyLog[day] || {};
+    const updated = { ...dailyLog, [day]: { ...current, [key]: !current[key] } };
+    setDailyLog(updated);
+    saveJSON("daily-log", updated);
+  }
+
+  function dailyStreak() {
+    let streak = 0;
+    let d = new Date();
+    while (true) {
+      const key = d.toISOString().slice(0, 10);
+      const day = dailyLog[key];
+      const allDone = day && DAILY_ITEMS.every(item => day[item.key]);
+      if (!allDone) break;
+      streak++;
+      d.setDate(d.getDate() - 1);
+    }
+    return streak;
+  }
+
+  return (
+    <div className="max-w-2xl mx-auto bg-zinc-950 text-zinc-100 min-h-screen">
+      <header className="border-b border-zinc-800 px-6 py-5 sticky top-0 bg-zinc-950/95 backdrop-blur z-10">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-lg font-bold tracking-tight text-amber-400 uppercase">Thevenin healthspan</h1>
+            <p className="text-xs text-zinc-500 mt-0.5">24-week rotation · A → B → C → D · never miss twice</p>
+          </div>
+          <div className="flex gap-1">
+            <button onClick={() => setTab("home")} className={`p-2 rounded-md ${tab === "home" ? "bg-amber-500/15 text-amber-400" : "text-zinc-500"}`}>
+              <IconDumbbell size={18} />
+            </button>
+            <button onClick={() => setTab("history")} className={`p-2 rounded-md ${tab === "history" ? "bg-amber-500/15 text-amber-400" : "text-zinc-500"}`}>
+              <IconHistory size={18} />
+            </button>
+          </div>
+        </div>
+      </header>
+
+      {tab === "home" && (
+        <div className="p-6 space-y-5">
+          <div className="rounded-xl border border-zinc-800 bg-zinc-900 overflow-hidden">
+            <div className="flex items-center gap-4 p-5">
+              <div className="w-14 h-14 rounded-lg bg-amber-500 text-zinc-950 flex items-center justify-center font-bold text-2xl shrink-0">
+                {nextId}
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs uppercase tracking-wide text-zinc-500">Next up</p>
+                <p className="font-semibold text-zinc-50 truncate">{nextWorkout.name}</p>
+                <p className="text-sm text-zinc-400 truncate">{nextWorkout.focus}</p>
+              </div>
+            </div>
+            {nextId === "B" && (
+              <div className="px-5 pb-3 flex flex-wrap gap-1.5">
+                {bCircuit.movements.map(m => (
+                  <span key={m.name} className="text-[11px] px-2 py-1 rounded bg-zinc-800 text-zinc-300">{m.name}</span>
+                ))}
+              </div>
+            )}
+            <div className="flex text-xs text-zinc-400 border-t border-zinc-800 divide-x divide-zinc-800">
+              <div className="flex-1 px-4 py-2.5">{nextWorkout.duration}</div>
+              <div className="flex-1 px-4 py-2.5 truncate">{nextWorkout.hyper}</div>
+            </div>
+            <button onClick={startSession} className="w-full flex items-center justify-center gap-2 py-3 bg-amber-500 text-zinc-950 font-semibold active:bg-amber-400 transition">
+              <IconPlay size={16} /> Start session
+            </button>
+          </div>
+
+          <div className="grid grid-cols-3 gap-3">
+            <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-3 text-center">
+              <p className="text-xl font-bold">{sessions.length}</p>
+              <p className="text-[11px] text-zinc-500 mt-0.5">Sessions logged</p>
+            </div>
+            <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-3 text-center">
+              <p className="text-xl font-bold">{rotation.lastCompleted}</p>
+              <p className="text-[11px] text-zinc-500 mt-0.5">Last completed</p>
+            </div>
+            <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-3 text-center">
+              <p className="text-xl font-bold flex items-center justify-center gap-1"><IconFlame size={16} className="text-amber-400" />{dailyStreak()}</p>
+              <p className="text-[11px] text-zinc-500 mt-0.5">Hygiene streak</p>
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-5">
+            <div className="flex items-center gap-2 mb-3">
+              <IconFoot size={16} className="text-amber-400" />
+              <p className="font-semibold text-sm">Daily foot/ankle hygiene</p>
+            </div>
+            <div className="space-y-2">
+              {DAILY_ITEMS.map(item => (
+                <button key={item.key} onClick={() => toggleDaily(item.key)} className="w-full flex items-center gap-3 text-left p-2 rounded-lg active:bg-zinc-800/60 transition">
+                  {todayDaily[item.key] ? <IconCheckCircle size={18} className="text-amber-400 shrink-0" /> : <IconCircle size={18} className="text-zinc-600 shrink-0" />}
+                  <div>
+                    <p className="text-sm text-zinc-100">{item.name}</p>
+                    <p className="text-xs text-zinc-500">{item.detail}</p>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {tab === "session" && activeWorkoutData && (
+        <div className="p-6 space-y-5 pb-24">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs uppercase tracking-wide text-zinc-500">Workout {activeWorkout}</p>
+              <h2 className="font-bold text-lg">{activeWorkoutData.name}</h2>
+              <p className="text-xs text-zinc-500">{activeWorkoutData.focus}</p>
+            </div>
+            <button onClick={() => { setActiveWorkout(null); setTab("home"); }} className="p-2 text-zinc-500">
+              <IconX size={18} />
+            </button>
+          </div>
+
+          {activeWorkoutData.sections.map(sec => (
+            <div key={sec.title} className="space-y-3">
+              <p className="text-xs uppercase tracking-wide text-amber-400 font-semibold">{sec.title}</p>
+              {sec.exercises.map(ex => (
+                <div key={ex.name} className="rounded-lg border border-zinc-800 bg-zinc-900 p-4">
+                  <div className="flex items-start justify-between gap-2 mb-2">
+                    <div>
+                      <p className="font-medium text-sm text-zinc-50">{ex.name}</p>
+                      <p className="text-xs text-zinc-500">{ex.sets} × {ex.reps} · {ex.intensity}</p>
+                    </div>
+                    <button onClick={() => updateEntry(ex.name, "done", !entries[ex.name]?.done)}>
+                      {entries[ex.name]?.done ? <IconCheckCircle size={20} className="text-amber-400" /> : <IconCircle size={20} className="text-zinc-600" />}
+                    </button>
+                  </div>
+                  <p className="text-xs text-zinc-500 italic mb-3">{ex.note}</p>
+                  <div className="grid grid-cols-4 gap-2 mb-2">
+                    {["s1", "s2", "s3", "s4"].map((s, i) => (
+                      <input key={s} value={entries[ex.name]?.[s] || ""} onChange={e => updateEntry(ex.name, s, e.target.value)}
+                        placeholder={`Rd ${i + 1}`} className="bg-zinc-800 border border-zinc-700 rounded-md px-2 py-1.5 text-xs text-zinc-100 placeholder-zinc-600 w-full" />
+                    ))}
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 mb-2">
+                    <input value={entries[ex.name]?.load || ""} onChange={e => updateEntry(ex.name, "load", e.target.value)}
+                      placeholder="Load / bell" className="bg-zinc-800 border border-zinc-700 rounded-md px-2 py-1.5 text-xs text-zinc-100 placeholder-zinc-600 w-full" />
+                    <input value={entries[ex.name]?.rpe || ""} onChange={e => updateEntry(ex.name, "rpe", e.target.value)}
+                      placeholder="RPE" className="bg-zinc-800 border border-zinc-700 rounded-md px-2 py-1.5 text-xs text-zinc-100 placeholder-zinc-600 w-full" />
+                  </div>
+                  <input value={entries[ex.name]?.notes || ""} onChange={e => updateEntry(ex.name, "notes", e.target.value)}
+                    placeholder="Notes" className="bg-zinc-800 border border-zinc-700 rounded-md px-2 py-1.5 text-xs text-zinc-100 placeholder-zinc-600 w-full" />
+                </div>
+              ))}
+            </div>
+          ))}
+
+          <div className="fixed bottom-0 left-0 right-0 max-w-2xl mx-auto p-4 bg-zinc-950/95 backdrop-blur border-t border-zinc-800">
+            <button onClick={completeSession} className="w-full flex items-center justify-center gap-2 py-3 rounded-lg bg-amber-500 text-zinc-950 font-semibold active:bg-amber-400 transition">
+              <IconCheck size={16} /> Complete session
+            </button>
+          </div>
+        </div>
+      )}
+
+      {tab === "history" && (
+        <div className="p-6 space-y-3">
+          {sessions.length === 0 && <p className="text-sm text-zinc-500">No sessions logged yet.</p>}
+          {sessions.map(s => {
+            const w = getWorkout(s.workoutId, s.circuit);
+            return (
+              <div key={s.id} className="rounded-lg border border-zinc-800 bg-zinc-900 overflow-hidden">
+                <button onClick={() => setOpenHistory(openHistory === s.id ? null : s.id)} className="w-full flex items-center justify-between p-4 text-left">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded bg-amber-500/15 text-amber-400 flex items-center justify-center font-bold text-sm">{s.workoutId}</div>
+                    <div>
+                      <p className="text-sm font-medium">{w.name}</p>
+                      <p className="text-xs text-zinc-500">{s.date}</p>
+                    </div>
+                  </div>
+                  {openHistory === s.id ? <IconChevronUp size={16} className="text-zinc-500" /> : <IconChevronDown size={16} className="text-zinc-500" />}
+                </button>
+                {openHistory === s.id && (
+                  <div className="border-t border-zinc-800 p-4 space-y-2">
+                    {Object.entries(s.entries).filter(([, v]) => v.done || v.load || v.notes).map(([name, v]) => (
+                      <div key={name} className="text-xs">
+                        <p className="text-zinc-200 font-medium">{name}</p>
+                        <p className="text-zinc-500">
+                          {[v.s1, v.s2, v.s3, v.s4].filter(Boolean).join(" · ")}
+                          {v.load && ` · ${v.load}`}
+                          {v.rpe && ` · RPE ${v.rpe}`}
+                        </p>
+                        {v.notes && <p className="text-zinc-500 italic">{v.notes}</p>}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+
+<script>
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("sw.js").catch(() => {});
+    });
+  }
+</script>
+</body>
+</html>
